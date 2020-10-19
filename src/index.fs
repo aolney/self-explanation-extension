@@ -13,7 +13,7 @@ open JupyterlabNotebook.Tokens
 
 //tricky here: if we try to make collection of requires, F# complains they are different types unless we specify obj type
 let mutable requires: obj array =
-    [| JupyterlabApputils.ICommandPalette; JupyterlabNotebook.Tokens.Types.INotebookTracker; JupyterlabApplication.ILayoutRestorer |]
+    [|  JupyterlabNotebook.Tokens.Types.INotebookTracker |]
 
 /// id to self explanation map
 let selfExplanationState = System.Collections.Generic.Dictionary<string,string>()
@@ -27,38 +27,12 @@ let logSelfExplanation( text : string) ( id : string ) =
 let [<Global>] ``global`` : obj = jsNative
 ``global``?logSelfExplanation <- logSelfExplanation
 
-//https://stackoverflow.com/questions/47640263/how-to-extend-a-js-class-in-fable
-[<Import("Widget", from = "@phosphor/widgets")>]
-[<AbstractClass>]
-type Widget() =
-    class
-        // only implementing the minimal members needed
-        member val node: HTMLElement = null with get, set
-        /// Guess only fires once after attach to DOM. onAfterShow is called after every display (e.g., switching tabs)
-        //abstract onAfterAttach: unit -> unit
-        /// Using to resize blockly
-        //abstract onResize: PhosphorWidgets.Widget.ResizeMessage -> unit
-    end
-
-/// Wrapping blockly in a widget helps with resizing and other GUI events that affect blockly
-type SelfExplanationWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker) as this =
-    class
-        inherit Widget()
-        do
-          //listen for cell changes
-          notebooks.activeCellChanged.connect( this.onActiveCellChanged, this ) |> ignore  
-
-          //decide if we should log
-          Logging.CheckShouldLog()
-        member val notHooked = true with get, set
-        member this.Notebooks = notebooks
-       
-        member this.onActiveCellChanged =
+/// When the active cell changes, probe all cells b/c listening for kernel messages requires waiting to attach 
+let onActiveCellChanged =
           PhosphorSignaling.Slot<INotebookTracker, Cell>(fun sender args ->  
 
-            //SELF EXPLANATION: probe all cells b/c listening for kernel messages requires waiting to attach (we could poll instead...)
             // check ALL code cell outputs every time a cell changes
-            let cells = this.Notebooks.currentWidget.Value.content.widgets
+            let cells = sender.currentWidget.Value.content.widgets
             for i = 0 to cells.length - 1 do
               let cell = cells.[i]
               if cell.model.``type`` = JupyterlabCoreutils.Nbformat.Nbformat.CellType.Code then
@@ -97,9 +71,9 @@ type SelfExplanationWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker
          
             true
            )
-    end
 
-//TODO figure out autostart; lack of UI; injecting state from workspace
+
+//TODO inject state
 
 let extension =
     createObj
@@ -109,42 +83,15 @@ let extension =
           //------------------------------------------------------------------------------------------------------------
           //NOTE: this **must** be wrapped in a Func, otherwise the arguments are tupled and Jupyter doesn't expect that
           //------------------------------------------------------------------------------------------------------------
-          "activate" ==> System.Func<JupyterlabApplication.JupyterFrontEnd<JupyterlabApplication.LabShell>, JupyterlabApputils.ICommandPalette, JupyterlabNotebook.Tokens.INotebookTracker, JupyterlabApplication.ILayoutRestorer, unit>(fun app palette notebooks restorer ->
+          "activate" ==> System.Func<JupyterlabApplication.JupyterFrontEnd<JupyterlabApplication.LabShell>, JupyterlabNotebook.Tokens.INotebookTracker, unit>(fun app notebooks ->
                              console.log ("JupyterLab extension self_explanation_extension is activated!")
 
-                             //Create a blockly widget and place inside main area widget
-                             let selfExplanationWidget = SelfExplanationWidget(notebooks)
-                             let widget =
-                                 JupyterlabApputils.Types.MainAreaWidget.Create
-                                     (createObj [ "content" ==> selfExplanationWidget ])
-                             widget.id <- "self-explanation-jupyterlab"
-                             widget.title.label <- "Self-Explanation Extension"
-                             widget.title.closable <- true
+                             notebooks.activeCellChanged.connect( onActiveCellChanged, null ) |> ignore  
 
-                            //TODO create tracker: https://github.com/jupyterlab/jupyterlab_apod/blob/2.0-06-prepare-to-publish/src/index.ts
+                             //decide if we should log
+                             Logging.CheckShouldLog()
 
-                             // Add application command
-                             let command = "self-explanation:open"
-                             app.commands.addCommand
-                                 (command,
-                                  createObj
-                                      [ "label" ==> "Self-Explanation Extension"
-                                        "execute" ==> fun () ->
-                                            if not <| widget.isAttached then
-                                                match notebooks.currentWidget with
-                                                | Some(c) ->
-                                                    let options =
-                                                        jsOptions<JupyterlabDocregistry.Registry.DocumentRegistry.IOpenOptions> (fun o ->
-                                                            o.ref <- c.id |> Some
-                                                            o.mode <-
-                                                                PhosphorWidgets.DockLayout.InsertMode.SplitLeft |> Some)
-                                                    c.context.addSibling (widget, options) |> ignore
-                                                | None -> app.shell.add (widget, "main")
-                                            app.shell.activateById (widget.id) ] :?> PhosphorCommands.CommandRegistry.ICommandOptions)
-                             |> ignore
-                             //Add command to palette
-                             palette?addItem (createObj
-                                                  [ "command" ==> command
-                                                    "category" ==> "Self-Explanation" ])) ]
+                           ) //System.Func
+        ]
 
 exportDefault extension
