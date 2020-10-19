@@ -84,14 +84,21 @@ let extension =
           //NOTE: this **must** be wrapped in a Func, otherwise the arguments are tupled and Jupyter doesn't expect that
           //------------------------------------------------------------------------------------------------------------
           "activate" ==> System.Func<JupyterlabApplication.JupyterFrontEnd<JupyterlabApplication.LabShell>, JupyterlabNotebook.Tokens.INotebookTracker, unit>(fun app notebooks ->
-                             console.log ("JupyterLab extension self_explanation_extension is activated!")
+                  let searchParams = Browser.Url.URLSearchParams.Create(  Browser.Dom.window.location.search )
+                  match searchParams.get("se") with
+                  //if query string has se=1, activate self-explanation extension
+                  | Some(state) when state = "1" ->
+                   console.log ("JupyterLab extension self_explanation_extension is activated!")
 
-                             notebooks.activeCellChanged.connect( onActiveCellChanged, null ) |> ignore  
+                   notebooks.activeCellChanged.connect( onActiveCellChanged, null ) |> ignore  
 
-                             //decide if we should log
-                             Logging.CheckShouldLog()
+                   //decide if we should log
+                   Logging.CheckShouldLog()
 
-                           ) //System.Func
+                  //deactivate self-explanation extension by default
+                  | _ -> ()
+
+                ) //System.Func
         ]
 
 exportDefault extension
