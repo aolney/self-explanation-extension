@@ -13,7 +13,7 @@ open JupyterlabNotebook.Tokens
 
 //tricky here: if we try to make collection of requires, F# complains they are different types unless we specify obj type
 let mutable requires: obj array =
-    [| JupyterlabApputils.ICommandPalette; JupyterlabNotebook.Tokens.Types.INotebookTracker |]
+    [| JupyterlabApputils.ICommandPalette; JupyterlabNotebook.Tokens.Types.INotebookTracker; JupyterlabApplication.ILayoutRestorer |]
 
 /// id to self explanation map
 let selfExplanationState = System.Collections.Generic.Dictionary<string,string>()
@@ -62,7 +62,7 @@ type SelfExplanationWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker
             for i = 0 to cells.length - 1 do
               let cell = cells.[i]
               if cell.model.``type`` = JupyterlabCoreutils.Nbformat.Nbformat.CellType.Code then
-                console.log ("I am a code cell")
+                // console.log ("I am a code cell")
                 let codeCell = cell :?> JupyterlabCells.Widget.CodeCell
 
                 //check if our self-explanation response box is already present; don't create duplicates!
@@ -89,7 +89,7 @@ type SelfExplanationWidget(notebooks: JupyterlabNotebook.Tokens.INotebookTracker
                       [
                         "output_type" ==> "display_data"
                         //inject the modelId into the textarea id; insert the stored self explanation if it exists; creating a logging handler with this information
-                        "data" ==> createObj [ "text/html" ==> """<div style='display:inline-block;vertical-align: top;'><textarea id='self-explanation""" + modelId +  """' cols='60' rows='2'""" + (if selfExplanation = "" then " style='color:Tomato;'" else "") + ">" + selfExplanation  + """</textarea></div><div style='display:inline-block;vertical-align: top;'><button onclick="document.getElementById('self-explanation""" + modelId + """').style.color = 'black';logSelfExplanation(document.getElementById('self-explanation""" + modelId + """').value,'""" + modelId + """')">Enter</button></div>""" ]
+                        "data" ==> createObj [ "text/html" ==> """<p>Explain the code/output for this cell.</p><div style='display:inline-block;vertical-align: top;'><textarea id='self-explanation""" + modelId +  """' cols='60' rows='2'""" + (if selfExplanation = "" then " style='color:Tomato;'" else "") + ">" + selfExplanation  + """</textarea></div><div style='display:inline-block;vertical-align: top;'><button onclick="document.getElementById('self-explanation""" + modelId + """').style.color = 'black';logSelfExplanation(document.getElementById('self-explanation""" + modelId + """').value,'""" + modelId + """')">Save</button></div>""" ]
                       ] :?> JupyterlabCoreutils.Nbformat.Nbformat.IOutput
               
                   codeCell.outputArea.model.add( displayData ) |> ignore
@@ -109,7 +109,7 @@ let extension =
           //------------------------------------------------------------------------------------------------------------
           //NOTE: this **must** be wrapped in a Func, otherwise the arguments are tupled and Jupyter doesn't expect that
           //------------------------------------------------------------------------------------------------------------
-          "activate" ==> System.Func<JupyterlabApplication.JupyterFrontEnd<JupyterlabApplication.LabShell>, JupyterlabApputils.ICommandPalette, JupyterlabNotebook.Tokens.INotebookTracker, unit>(fun app palette notebooks ->
+          "activate" ==> System.Func<JupyterlabApplication.JupyterFrontEnd<JupyterlabApplication.LabShell>, JupyterlabApputils.ICommandPalette, JupyterlabNotebook.Tokens.INotebookTracker, JupyterlabApplication.ILayoutRestorer, unit>(fun app palette notebooks restorer ->
                              console.log ("JupyterLab extension self_explanation_extension is activated!")
 
                              //Create a blockly widget and place inside main area widget
@@ -117,12 +117,14 @@ let extension =
                              let widget =
                                  JupyterlabApputils.Types.MainAreaWidget.Create
                                      (createObj [ "content" ==> selfExplanationWidget ])
-                             widget.id <- "blockly-jupyterlab"
-                             widget.title.label <- "Blockly Palette"
+                             widget.id <- "self-explanation-jupyterlab"
+                             widget.title.label <- "Self-Explanation Extension"
                              widget.title.closable <- true
 
+                            //TODO create tracker: https://github.com/jupyterlab/jupyterlab_apod/blob/2.0-06-prepare-to-publish/src/index.ts
+
                              // Add application command
-                             let command = "blockly:open"
+                             let command = "self-explanation:open"
                              app.commands.addCommand
                                  (command,
                                   createObj
@@ -143,6 +145,6 @@ let extension =
                              //Add command to palette
                              palette?addItem (createObj
                                                   [ "command" ==> command
-                                                    "category" ==> "Blockly" ])) ]
+                                                    "category" ==> "Self-Explanation" ])) ]
 
 exportDefault extension
