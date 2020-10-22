@@ -12,3 +12,4 @@ tests/bin/
 tests/obj/
 *.ipynb
 .fake
+*.log

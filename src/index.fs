@@ -27,7 +27,9 @@ let logSelfExplanation( text : string) ( id : string ) =
 let [<Global>] ``global`` : obj = jsNative
 ``global``?logSelfExplanation <- logSelfExplanation
 
-/// When the active cell changes, probe all cells b/c listening for kernel messages requires waiting to attach 
+/// When the active cell changes, probe all cells
+/// Probing necessary b/c we need to check for new code cells
+/// We want to allow self-explanation before code is executed, so listening for kernel messages is insufficient
 let onActiveCellChanged =
           PhosphorSignaling.Slot<INotebookTracker, Cell>(fun sender args ->  
 
@@ -72,9 +74,6 @@ let onActiveCellChanged =
             true
            )
 
-
-//TODO inject state
-
 let extension =
     createObj
         [ "id" ==> "self_explanation_extension"
@@ -90,6 +89,7 @@ let extension =
                   | Some(state) when state = "1" ->
                    console.log ("JupyterLab extension self_explanation_extension is activated!")
 
+                   //register for cell change events
                    notebooks.activeCellChanged.connect( onActiveCellChanged, null ) |> ignore  
 
                    //decide if we should log
