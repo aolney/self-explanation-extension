@@ -21,7 +21,7 @@ let selfExplanationState = System.Collections.Generic.Dictionary<string,string>(
 /// Log self explanation and save its state
 let logSelfExplanation( text : string) ( id : string ) =
   Logging.LogToServer( Logging.JupyterLogEntry082720.Create "self-explanation" ( text |> Some ) ) 
-  selfExplanationState.Add( id, text)
+  if not <| selfExplanationState.ContainsKey( id ) then selfExplanationState.Add( id, text)
 
 /// Simplest way to connect javascript injected into code cell output to F#: make a global function in node
 let [<Global>] ``global`` : obj = jsNative
@@ -96,6 +96,11 @@ let extension =
                    Logging.CheckShouldLog()
 
                   //deactivate self-explanation extension by default
+                  | _ -> ()
+
+                  //If query string has id=xxx, store this identifier as a participant id
+                  match searchParams.get("id") with
+                  | Some(id) -> Logging.idOption <- Some(id)
                   | _ -> ()
 
                 ) //System.Func

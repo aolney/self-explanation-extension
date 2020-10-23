@@ -4,6 +4,10 @@ A [JupyterLab](https://jupyterlab.readthedocs.io/en/stable/) extension with [Fab
 
 The self-explanations can be logged to a database using the Fetch API, but the current endpoint is hard-coded and deactivated by default.
 
+To enable the extension, put `se=1` into the URL query string.
+
+An additional identifier can be put into the query string, e.g. `se=1&id=xxx`, for logging purposes.
+
 **NOTE: This plugin requires jupyterlab <= 1.2.6, so if you have a higher version (e.g. 2.X) you will need to execute `conda install jupyterlab=1.2.6` or similar for `pip`**
 
 
