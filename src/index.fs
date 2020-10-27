@@ -15,17 +15,31 @@ open JupyterlabNotebook.Tokens
 let mutable requires: obj array =
     [|  JupyterlabNotebook.Tokens.Types.INotebookTracker |]
 
-/// id to self explanation map
-let selfExplanationState = System.Collections.Generic.Dictionary<string,string>()
+/// id to self explanation map that tracks whether the self-explanation has been logged
+let selfExplanationState = System.Collections.Generic.Dictionary<string,bool*string>()
 
 /// Log self explanation and save its state
 let logSelfExplanation( text : string) ( id : string ) =
   Logging.LogToServer( Logging.JupyterLogEntry082720.Create "self-explanation" ( text |> Some ) ) 
-  if not <| selfExplanationState.ContainsKey( id ) then selfExplanationState.Add( id, text)
+  if not <| selfExplanationState.ContainsKey( id ) then 
+    selfExplanationState.Add( id, (true,text) ) 
+  else
+    selfExplanationState.[id] <- (true,text)
+
+let handleKey( this : HTMLTextAreaElement ) (id:string) =
+  //create an empty record if it doesn't exist
+  if not <| selfExplanationState.ContainsKey( id ) then 
+    selfExplanationState.Add( id, (false,"") )
+  //update the record; mark it as dirty
+  let _, se = selfExplanationState.[id]
+  selfExplanationState.[id] <- (false,this.value)
+  //change the style on the textarea to indicate an unsaved state
+  this.setAttribute("style","color:Tomato")
 
 /// Simplest way to connect javascript injected into code cell output to F#: make a global function in node
 let [<Global>] ``global`` : obj = jsNative
 ``global``?logSelfExplanation <- logSelfExplanation
+``global``?handleKey <- handleKey
 
 /// When the active cell changes, probe all cells
 /// Probing necessary b/c we need to check for new code cells
@@ -54,18 +68,18 @@ let onActiveCellChanged =
                   //conveniently we have a unique persistent id
                   let modelId = codeCell.model.id
                   //retrieve the stored self-explanation if it exists
-                  let selfExplanation = 
+                  let isSaved,selfExplanation = 
                     match selfExplanationState.TryGetValue(modelId) with
                       | true,se -> se //we have a stored self explanation
-                      | false,_ -> "" //nothing stored
+                      | false,_ -> false,"" //nothing stored
 
-                  //if self explanation exists, display it in black; else display an empty textarea with red font
+                  //if self explanation has been saved, display it in black; else display an empty textarea with red font
                   let displayData = //
                     createObj 
                       [
                         "output_type" ==> "display_data"
                         //inject the modelId into the textarea id; insert the stored self explanation if it exists; creating a logging handler with this information
-                        "data" ==> createObj [ "text/html" ==> """<p>Explain the code/output for this cell.</p><div style='display:inline-block;vertical-align: top;'><textarea id='self-explanation""" + modelId +  """' cols='60' rows='2'""" + (if selfExplanation = "" then " style='color:Tomato;'" else "") + ">" + selfExplanation  + """</textarea></div><div style='display:inline-block;vertical-align: top;'><button onclick="document.getElementById('self-explanation""" + modelId + """').style.color = 'black';logSelfExplanation(document.getElementById('self-explanation""" + modelId + """').value,'""" + modelId + """')">Save</button></div>""" ]
+                        "data" ==> createObj [ "text/html" ==> """<p>Explain the code/output for this cell.</p><div style='display:inline-block;vertical-align: top;'><textarea id='self-explanation""" + modelId +  """' cols='60' rows='2'""" + (if not <| isSaved then " style='color:Tomato;'" else "") + """onkeyup="(function(e){handleKey(e,'""" + modelId + """');})(this)">""" + selfExplanation  + """</textarea></div><div style='display:inline-block;vertical-align: top;'><button onclick="document.getElementById('self-explanation""" + modelId + """').style.color = 'black';logSelfExplanation(document.getElementById('self-explanation""" + modelId + """').value,'""" + modelId + """')">Save</button></div>""" ]
                       ] :?> JupyterlabCoreutils.Nbformat.Nbformat.IOutput
               
                   codeCell.outputArea.model.add( displayData ) |> ignore
