@@ -2,11 +2,13 @@
 
 A [JupyterLab](https://jupyterlab.readthedocs.io/en/stable/) extension with [Fable](https://fable.io/) tooling that creates a self-explanation input for each code cell.
 
-The self-explanations can be logged to a database using the Fetch API, but the current endpoint is hard-coded and deactivated by default.
+The following query string parameters enable functionality:
 
-To enable the extension, put `se=1` into the URL query string.
+- `se=1` enables the extension
+- `log=xxx` specifies a url for a logging endpoint (e.g. https://yourdomain.com/log)
+- `id=xxx` adds an identifier for logging
 
-An additional identifier can be put into the query string, e.g. `se=1&id=xxx`, for logging purposes.
+The log data format is `{username: string, json: string}`.
 
 **NOTE: This plugin requires jupyterlab <= 1.2.6, so if you have a higher version (e.g. 2.X) you will need to execute `conda install jupyterlab=1.2.6` or similar for `pip`**
 
