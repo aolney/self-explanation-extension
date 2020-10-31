@@ -9,21 +9,13 @@ open Thoth.Fetch
 let inline toJson x = Encode.Auto.toString(4, x)
 let inline ofJson<'T> json = Decode.Auto.unsafeFromString<'T>(json)
 
-type BlocklyLogEntry082720 =
+type SelfExplanationLogEntry082720 =
     {
         schema: string
-        name: string
-        id : string //Event doc suggests this can be list at times, but foreign interface doesn't reflect that: https://developers.google.com/blockly/guides/configure/web/events
+        code: string
+        explanation : string 
     } with
-    static member Create name id = { schema = "ble082720"; name = name; id=id }
-
-type JupyterLogEntry082720 =
-    {
-        schema: string
-        name: string
-        payload : string option
-    } with
-    static member Create name payload = { schema = "jle082720"; name = name ; payload = payload}
+    static member Create code explanation = { schema = "se082720"; code = code; explanation=explanation }
 
 type LogEntry = 
     {
@@ -31,26 +23,22 @@ type LogEntry =
         json: string
     }
 
-/// No logging by default; only turn on if within olney.ai domain;
-let mutable shouldLog = false
-
 /// Where we are sending the data
-let LogServerEndpoint = "https://logging.olney.ai"
+let mutable logUrl : string option = None
  
 let mutable idOption : string option = None
 
 /// Log to server. Basically this is Express wrapping a database, but repo is not public as of 8/25/20
 let LogToServer( logObject: obj ) = 
-    if shouldLog then
+    match logUrl with
+    | Some(url) ->
         promise {
             let username = 
                 match idOption with
                 | Some(id) -> id
+                //In a JupyterHub situation, we can use the username embedded in the url
                 | None -> Browser.Dom.window.location.href
-            do! Fetch.post( LogServerEndpoint + "/datawhys/log" , { username=username; json=toJson(logObject) } ) //caseStrategy = SnakeCase
+            do! Fetch.post( url, { username=username; json=toJson(logObject) } ) //caseStrategy = SnakeCase
         } |> ignore
+    | None -> ()
 
-/// Call this when attaching extension
-let CheckShouldLog() =
-    if Browser.Dom.window.location.href.Contains("olney.ai") then
-        shouldLog <- true
